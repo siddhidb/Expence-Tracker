@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Expense Tracker
 
 A simple web-based expense tracking application built with Flask and SQLite.
@@ -87,3 +88,6 @@ You can customize the expense categories by modifying the `select` element in `t
 ## License
 
 This project is open source and available under the [MIT License](LICENSE).
+=======
+# Expence-Tracker
+>>>>>>> 833fe15f4093e7f8bf8e7b0479172b19829a43c1
