@@ -1,0 +1,542 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Stats Cards Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <h4 class="mb-3">Monthly Overview - {{ current_month }}</h4>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-subtitle mb-0 text-muted">Total Spent</h6>
+                        <i class="fas fa-wallet text-primary"></i>
+                    </div>
+                    <h3 class="mb-0">₹{{ "%.2f"|format(total) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-subtitle mb-0 text-muted">Daily Average</h6>
+                        <i class="fas fa-chart-line text-success"></i>
+                    </div>
+                    <h3 class="mb-0">₹{{ "%.2f"|format(daily_average) }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <h6 class="card-subtitle mb-0 text-muted">Remaining Days</h6>
+                        <i class="far fa-calendar-alt text-info"></i>
+                    </div>
+                    <h3 class="mb-0">{{ days_remaining_in_month }}</h3>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-lg-4 col-md-6 mb-3 mb-md-0">
+                            <div class="chart-container" style="position: relative; height: 300px;">
+                                <h6 class="text-center mb-3">Expense Distribution</h6>
+                                <canvas id="categoryPieChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-lg-8 col-md-6">
+                            <div class="chart-container" style="position: relative; height: 300px;">
+                                <h6 class="text-center mb-3">Monthly Spending Trend</h6>
+                                <canvas id="monthlyTrendChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Budget vs Actual Row -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="chart-container" style="position: relative; height: 300px;">
+                        <h6 class="text-center mb-3">Budget vs. Actual</h6>
+                        <canvas id="budgetChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Budget Status</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Category</th>
+                                    <th class="text-end">Spent</th>
+                                    <th class="text-end">Budget</th>
+                                    <th class="text-end">Remaining</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for category, spent in monthly_expenses.items() %}
+                                <tr>
+                                    <td>{{ category }}</td>
+                                    <td class="text-end">₹{{ "%.2f"|format(spent) }}</td>
+                                    <td class="text-end">
+                                        <div class="input-group input-group-sm justify-content-end" style="max-width: 150px;">
+                                            <span class="input-group-text">₹</span>
+                                            <input type="number" class="form-control text-end budget-input" 
+                                                   data-category="{{ category }}" 
+                                                   value="{{ "%.2f"|format(budgets.get(category, 0)) }}"
+                                                   step="100">
+                                        </div>
+                                    </td>
+                                    <td class="text-end">
+                                        <span class="badge {% if remaining_budgets.get(category, 0) >= 0 %}bg-success{% else %}bg-danger{% endif %}">
+                                            ₹{{ "%.2f"|format(remaining_budgets.get(category, 0)) }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="card h-100">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Savings Suggestions</h5>
+                </div>
+                <div class="card-body" id="savingsSuggestions">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-2 mb-0">Analyzing your spending patterns...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8 mx-auto">
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="card border-0 shadow-sm">
+                        <div class="card-header bg-white border-0 py-3">
+                            <h5 class="mb-0">Add New Expense</h5>
+                        </div>
+                        <div class="card-body">
+                            <form action="{{ url_for('add_expense') }}" method="POST" class="needs-validation" novalidate>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label for="amount" class="form-label">Amount (₹)</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text">₹</span>
+                                            <input type="number" step="0.01" class="form-control" id="amount" name="amount" required>
+                                            <div class="invalid-feedback">
+                                                Please enter a valid amount
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="category" class="form-label">Category</label>
+                                        <select class="form-select" id="category" name="category" required>
+                                            <option value="" disabled selected>Select a category</option>
+                                            <option value="Food">🍽️ Food</option>
+                                            <option value="Transportation">🚗 Transportation</option>
+                                            <option value="Housing">🏠 Housing</option>
+                                            <option value="Utilities">💡 Utilities</option>
+                                            <option value="Entertainment">🎬 Entertainment</option>
+                                            <option value="Healthcare">🏥 Healthcare</option>
+                                            <option value="Shopping">🛍️ Shopping</option>
+                                            <option value="Other">📌 Other</option>
+                                        </select>
+                                        <div class="invalid-feedback">
+                                            Please select a category
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="date" class="form-label">Date</label>
+                                        <input type="date" class="form-control" id="date" name="date" required>
+                                        <div class="invalid-feedback">
+                                            Please select a date
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label for="description" class="form-label">Description</label>
+                                        <div class="input-group">
+                                            <span class="input-group-text"><i class="fas fa-edit"></i></span>
+                                            <input type="text" class="form-control" id="description" name="description" placeholder="e.g., Groceries">
+                                        </div>
+                                    </div>
+                                    <div class="col-12">
+                                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                            <button type="reset" class="btn btn-outline-secondary me-md-2">
+                                                <i class="fas fa-undo me-1"></i> Reset
+                                            </button>
+                                            <button type="submit" class="btn btn-primary">
+                                                <i class="fas fa-plus-circle me-1"></i> Add Expense
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Expenses List -->
+            <div class="card">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">Recent Expenses</h5>
+                    <span class="badge bg-secondary">{{ expenses|length }} items</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if expenses %}
+                        <div class="list-group list-group-flush">
+                            {% for expense in expenses %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-1">₹{{ "%.2f"|format(expense.amount) }}</h6>
+                                        <p class="mb-1 text-muted">
+                                            <span class="badge bg-primary category-badge">{{ expense.category }}</span>
+                                            {% if expense.description %}
+                                                <span class="ms-2">{{ expense.description }}</span>
+                                            {% endif %}
+                                        </p>
+                                        <small class="text-muted">
+                                            <i class="bi bi-calendar3"></i> {{ expense.date.strftime('%b %d, %Y %I:%M %p') }}
+                                        </small>
+                                    </div>
+                                    <div>
+                                        <a href="{{ url_for('delete_expense', id=expense.id) }}" 
+                                           class="btn btn-sm btn-outline-danger"
+                                           onclick="return confirm('Are you sure you want to delete this expense?')">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-5">
+                            <div class="mb-3">
+                                <i class="bi bi-wallet2" style="font-size: 3rem; color: #6c757d;"></i>
+                            </div>
+                            <h5>No expenses yet</h5>
+                            <p class="text-muted">Add your first expense to get started!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize tooltips
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl)
+    });
+
+    // Monthly Trend Chart
+    const monthlyCtx = document.getElementById('monthlyTrendChart').getContext('2d');
+    const monthlyChart = new Chart(monthlyCtx, {
+        type: 'line',
+        data: {
+            labels: {{ months|safe }},
+            datasets: [{
+                label: 'Monthly Spending',
+                data: {{ monthly_totals|safe }},
+                borderColor: 'rgba(54, 162, 235, 1)',
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                tension: 0.4,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: {
+                    display: true,
+                    text: '6-Month Spending Trend'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return '₹' + context.raw.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '₹' + value.toLocaleString('en-IN');
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Budget vs Spent Chart
+    function updateBudgetChart() {
+        fetch('/get_expense_data')
+            .then(response => response.json())
+            .then(data => {
+                const ctx = document.getElementById('budgetChart').getContext('2d');
+                
+                if (window.budgetChart) {
+                    window.budgetChart.destroy();
+                }
+                
+                window.budgetChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: data.categories,
+                        datasets: [
+                            {
+                                label: 'Spent',
+                                data: data.spent,
+                                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                                borderColor: 'rgba(255, 99, 132, 1)',
+                                borderWidth: 1
+                            },
+                            {
+                                label: 'Budget',
+                                data: data.limits,
+                                backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                                borderColor: 'rgba(54, 162, 235, 1)',
+                                borderWidth: 1,
+                                type: 'line',
+                                fill: false
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Budget vs. Actual Spending'
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        return context.dataset.label + ': ₹' + context.raw.toLocaleString('en-IN');
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: {
+                                    callback: function(value) {
+                                        return '₹' + value.toLocaleString('en-IN');
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+    }
+
+    // Update budget when input changes
+    $(document).on('change', '.budget-input', function() {
+        const category = $(this).data('category');
+        const limit = parseFloat($(this).val()) || 0;
+        
+        $.ajax({
+            url: '/update_budget',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                category: category,
+                limit: limit
+            }),
+            success: function() {
+                updateBudgetChart();
+                loadSavingsSuggestions();
+                // Show a small success message
+                const toast = document.createElement('div');
+                toast.className = 'position-fixed bottom-0 end-0 m-3';
+                toast.innerHTML = `
+                    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true">
+                        <div class="toast-header bg-success text-white">
+                            <strong class="me-auto">Success</strong>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast" aria-label="Close"></button>
+                        </div>
+                        <div class="toast-body">
+                            Budget for ${category} updated to ₹${limit.toLocaleString('en-IN')}
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(toast);
+                setTimeout(() => {
+                    toast.remove();
+                }, 3000);
+            }
+        });
+    });
+
+    // Load savings suggestions
+    function loadSavingsSuggestions() {
+        fetch('/get_savings_suggestions')
+            .then(response => response.json())
+            .then(data => {
+                const container = document.getElementById('savingsSuggestions');
+                if (data.suggestions.length === 0) {
+                    container.innerHTML = `
+                        <div class="alert alert-info">
+                            <i class="bi bi-info-circle me-2"></i>
+                            No specific suggestions available. Keep up the good work!
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '<div class="list-group list-group-flush">';
+                data.suggestions.forEach(suggestion => {
+                    const isTip = suggestion.category.toLowerCase() === 'tip' || 
+                                 suggestion.category.toLowerCase() === 'good job!';
+                    const bgClass = isTip ? 'bg-light' : '';
+                    const textClass = isTip ? 'text-muted' : '';
+                    
+                    html += `
+                        <div class="list-group-item ${bgClass}">
+                            <div class="d-flex">
+                                <div class="flex-shrink-0">
+                                    <i class="bi ${isTip ? 'bi-lightbulb' : 'bi-currency-rupee'} ${textClass}"></i>
+                                </div>
+                                <div class="flex-grow-1 ms-3">
+                                    <h6 class="mb-1">${suggestion.category}</h6>
+                                    <p class="mb-0 ${textClass}">${suggestion.message}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += '</div>';
+                container.innerHTML = html;
+            });
+    }
+
+    // Initialize charts and suggestions
+    document.addEventListener('DOMContentLoaded', function() {
+        updateBudgetChart();
+        loadSavingsSuggestions();
+        updatePieChart();
+        
+        // Refresh charts when the tab becomes visible
+        document.addEventListener('visibilitychange', function() {
+            if (!document.hidden) {
+                updateBudgetChart();
+                updatePieChart();
+            }
+        });
+    });
+
+    // Function to update the pie chart
+    function updatePieChart() {
+        fetch('/get_monthly_category_data')
+            .then(response => response.json())
+            .then(data => {
+                const ctx = document.getElementById('categoryPieChart').getContext('2d');
+                
+                // Destroy existing chart if it exists
+                if (window.pieChart) {
+                    window.pieChart.destroy();
+                }
+
+                // Generate colors for each category
+                const backgroundColors = [
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(153, 102, 255, 0.7)',
+                    'rgba(255, 159, 64, 0.7)',
+                    'rgba(199, 199, 199, 0.7)',
+                    'rgba(83, 102, 255, 0.7)',
+                    'rgba(40, 159, 64, 0.7)'
+                ];
+
+                // Calculate percentages for labels
+                const total = data.amounts.reduce((a, b) => a + b, 0);
+                const percentages = data.amounts.map(amount => (amount / total * 100).toFixed(1) + '%');
+                
+                window.pieChart = new Chart(ctx, {
+                    type: 'pie',
+                    data: {
+                        labels: data.categories.map((cat, i) => `${cat} (${percentages[i]})`),
+                        datasets: [{
+                            data: data.amounts,
+                            backgroundColor: backgroundColors.slice(0, data.categories.length),
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'right',
+                                labels: {
+                                    boxWidth: 12,
+                                    padding: 10,
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const label = context.label || '';
+                                        const value = context.raw || 0;
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        return `${label.split(' (')[0]}: ₹${value.toLocaleString('en-IN')} (${percentage}%)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            });
+    }
+</script>
+{% endblock %}
